@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_USER: relay
+      POSTGRES_PASSWORD: local-development-only
+      POSTGRES_DB: relay
+    ports: ["127.0.0.1:55432:5432"]
+    volumes: ["relay_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U relay -d relay"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+  api:
+    build: .
+    command: ["uvicorn", "apps.api.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+    environment: &api_env
+      DATABASE_URL: postgresql+psycopg://relay:local-development-only@db:5432/relay
+      DEV_AUTH: ${DEV_AUTH:-false}
+      DEV_TOKENS_JSON: ${DEV_TOKENS_JSON:-{}}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      WEB_ORIGIN: http://localhost:3000
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      db: {condition: service_healthy}
+  sweeper:
+    build: .
+    command: ["python", "-m", "apps.api.sweeper"]
+    environment: *api_env
+    depends_on: [api]
+  web:
+    build: apps/web
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on: [api]
+volumes:
+  relay_data:

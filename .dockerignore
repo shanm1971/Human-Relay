@@ -1,0 +1,7 @@
+.git
+**/node_modules
+**/.next
+**/__pycache__
+*.db
+.env
+demo-credentials.json

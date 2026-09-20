@@ -20,6 +20,8 @@ def create_app(database_url=None, dev_auth=None, dev_tokens=None, bootstrap=True
     engine = make_engine(url)
     if bootstrap: initialize(engine)
     supabase_url = os.getenv("SUPABASE_URL", "")
+    if not development and not supabase_url.startswith("https://"):
+        raise RuntimeError("SUPABASE_URL must be configured for hosted authentication.")
     settings = {"dev_auth": development, "dev_tokens": dev_tokens or json.loads(os.getenv("DEV_TOKENS_JSON", "{}")), "supabase_url": supabase_url,
                 "jwks": jwt.PyJWKClient(supabase_url.rstrip("/")+"/auth/v1/.well-known/jwks.json") if supabase_url else None}
     app = FastAPI(title="Human Relay", version="0.1.0", description="Closed-alpha human capability protocol. Fake credits only.")
@@ -41,6 +43,8 @@ def create_app(database_url=None, dev_auth=None, dev_tokens=None, bootstrap=True
 
     def run(request, operation):
         with transaction(engine) as s:
+            from .protocol import expire
+            expire(s)
             actor = authenticate(s, request.headers.get("authorization", "").removeprefix("Bearer "), settings, request.state.request_id)
             # Expected rejections are committed so authentication, safety and schema attempts remain auditable.
             try:
@@ -100,4 +104,6 @@ def create_app(database_url=None, dev_auth=None, dev_tokens=None, bootstrap=True
 
     app.state.run = run
     app.state.idem = idem
+    from .routes import register
+    register(app)
     return app
