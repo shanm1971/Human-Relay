@@ -32,7 +32,7 @@ Pygments==2.21.0
 PyJWT==2.14.0
 pytest==9.1.1
 python-multipart==0.0.32
-pywin32==312
+pywin32==312; sys_platform == "win32"
 referencing==0.37.0
 rpds-py==2026.6.3
 SQLAlchemy==2.0.54

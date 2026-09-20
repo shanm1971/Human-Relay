@@ -3,6 +3,7 @@ import json
 import logging
 import secrets
 from dataclasses import dataclass
+from contextvars import ContextVar
 import jwt
 from sqlalchemy import select, func
 from .models import *
@@ -19,6 +20,7 @@ def digest(value): return hashlib.sha256(value.encode()).hexdigest()
 def row(obj, exclude=()):
     return {c.name: getattr(obj, c.name) for c in obj.__table__.columns if c.name not in exclude}
 def count(s, model, *conditions): return s.scalar(select(func.count()).select_from(model).where(*conditions))
+current_request_id = ContextVar("request_id",default=None)
 
 @dataclass
 class Actor:
@@ -27,7 +29,7 @@ class Actor:
     organization_id: str | None = None
 
 def audit(s, event_type, actor=None, task=None, request_id=None, **data):
-    values = dict(event_type=event_type, event_data_json=data, request_id=request_id)
+    values = dict(event_type=event_type, event_data_json=data, request_id=request_id or current_request_id.get())
     if actor:
         values["organization_id"] = actor.organization_id
         if actor.role in ("agent", "worker"): values[actor.role+"_id"] = actor.id

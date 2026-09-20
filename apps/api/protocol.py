@@ -18,8 +18,17 @@ def permission(s,a,cap):
 def public_worker(s,w):
     offers=list(s.scalars(select(Offer).where(Offer.worker_id==w.id)))
     accepted=[o for o in offers if o.accepted_at]
+    worker_tasks=list(s.scalars(select(Task).where(Task.worker_id==w.id)))
+    completed=[t for t in worker_tasks if t.completed_at]
+    submitted=sum(latest_result(s,t) is not None for t in worker_tasks)
     from statistics import median
     return {"worker_id":w.public_worker_id,"status":w.availability,"minimum_price":w.minimum_task_price/100,"quality_score":w.quality_score,
+        "tasks_completed":w.tasks_completed,"tasks_failed":w.tasks_failed,
+        "acceptance_rate":len(accepted)/len(offers) if offers else None,
+        "median_acceptance_time":median([o.accepted_at-o.created_at for o in accepted]) if accepted else None,
+        "median_completion_time":median([t.completed_at-t.created_at for t in completed]) if completed else None,
+        "revision_rate":sum(t.revision_count>0 for t in worker_tasks)/len(worker_tasks) if worker_tasks else None,
+        "agent_acceptance_rate":len(completed)/submitted if submitted else None,
         "completion_rate":w.tasks_completed/max(1,w.tasks_completed+w.tasks_failed),
         "schema_compliance_rate":w.schema_valid/max(1,w.schema_attempts),
         "median_response_seconds":median([o.accepted_at-o.created_at for o in accepted]) if accepted else None,

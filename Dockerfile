@@ -1,7 +1,7 @@
 FROM python:3.14-slim
 WORKDIR /app
 COPY requirements.lock .
-RUN grep -v '^pywin32==' requirements.lock > requirements-linux.txt && pip install --no-cache-dir -r requirements-linux.txt
+RUN pip install --no-cache-dir -r requirements.lock
 COPY apps ./apps
 COPY database ./database
 RUN useradd --create-home relay

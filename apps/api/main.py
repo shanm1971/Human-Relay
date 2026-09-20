@@ -13,6 +13,10 @@ from .core import *
 from .schemas import *
 
 def create_app(database_url=None, dev_auth=None, dev_tokens=None, bootstrap=True):
+    logger=logging.getLogger("human_relay")
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:logger.addHandler(logging.StreamHandler())
+    logger.propagate=False
     url = database_url or os.getenv("DATABASE_URL", "sqlite:///./relay.db")
     development = dev_auth if dev_auth is not None else os.getenv("DEV_AUTH", "false").lower() == "true"
     if not development and not url.startswith("postgresql"):
@@ -31,6 +35,14 @@ def create_app(database_url=None, dev_auth=None, dev_tokens=None, bootstrap=True
     @app.middleware("http")
     async def request_context(request: Request, call_next):
         request.state.request_id = secrets.token_hex(12)
+        # Bound the entire body before JSON parsing, including chunked requests.
+        if request.method in ("POST", "PUT", "PATCH"):
+            body=bytearray()
+            async for chunk in request.stream():
+                body.extend(chunk)
+                if len(body)>65536:
+                    return JSONResponse(status_code=413,content={"error":{"code":"PAYLOAD_TOO_LARGE","message":"Request body exceeds 64 KB."}})
+            request._body=bytes(body)
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
         response.headers["Cache-Control"] = "no-store"
@@ -42,6 +54,7 @@ def create_app(database_url=None, dev_auth=None, dev_tokens=None, bootstrap=True
         return JSONResponse(status_code=exc.status, content={"status":"rejected", "error":{"code":exc.code, "message":exc.message, "category":exc.category}, "request_id":request.state.request_id})
 
     def run(request, operation):
+        current_request_id.set(request.state.request_id)
         with transaction(engine) as s:
             from .protocol import expire
             expire(s)
@@ -106,4 +119,6 @@ def create_app(database_url=None, dev_auth=None, dev_tokens=None, bootstrap=True
     app.state.idem = idem
     from .routes import register
     register(app)
+    from .dashboards import register_dashboards
+    register_dashboards(app)
     return app
