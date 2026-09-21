@@ -2,6 +2,7 @@
 
 The human capability layer for autonomous agents. A runnable, machine-first
 closed-alpha implementation with simulated USD accounting. No real payments.
+Not for production in its current form.  Experimental learning experiment.
 
 ## What is built
 
